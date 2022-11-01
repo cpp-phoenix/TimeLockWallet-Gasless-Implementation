@@ -1,24 +1,44 @@
 import logo from './logo.svg';
 import './App.css';
+import Navbar from './components/navbar';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Deposit from './pages/deposit';
+import Withdraw from './pages/withdraw';
+import Home from './pages/home';
+import {
+  WagmiConfig,
+  createClient,
+  configureChains,
+  chain,
+  defaultChains,
+} from 'wagmi'
+import { publicProvider } from 'wagmi/providers/public'
+ 
+const { chains, provider, webSocketProvider } = configureChains(
+  [chain.goerli],
+  [publicProvider()],
+)
+ 
+const client = createClient({
+  autoConnect: true,
+  provider,
+  webSocketProvider,
+})
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <WagmiConfig client={client}>
+      <div className='h-screen bg-blue-800'>
+        <Router>
+          <Navbar />
+          <Routes>
+            <Route path='/' exact element={<Home/>} />
+            <Route path='/deposit' element={<Deposit/>} />
+            <Route path='/withdraw' element={<Withdraw/>} />
+          </Routes>
+        </Router>
+      </div>
+    </WagmiConfig>
   );
 }
 
