@@ -1,10 +1,19 @@
 import React, { useEffect, useState } from "react";
+import { ethers } from 'ethers';
+import { Web3 } from 'web3';
 import { useAccount } from "wagmi";
 import { useBalance } from 'wagmi';
 import { useSigner } from 'wagmi';
+import { useProvider } from "wagmi";
+import timelockWalletABI from '../contractABI/timelockWalletABI.json';
+import erc20ABI from '../contractABI/ERC20ABI.json';
+import { Biconomy } from "@biconomy/mexa";
 import 'react-dropdown/style.css';
 
 const Withdraw = () => {
+
+    let biconomy;
+    let ethersProvider;
 
     const { address, isConnected } = useAccount();
 
@@ -29,27 +38,26 @@ const Withdraw = () => {
     };
 
     const handleSubmit = async () => {
-        if(selectedToken.balance >= withdrawValue && withdrawValue > 0) {
-            console.log("Data is: " + withdrawValue + " " + selectedToken.contract);
-            const timelockWallet = new ethers.Contract("0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5", timelockWalletABI, signer);
-            try{
-                let txnReceipt = "";
-                if(selectedToken.symbol === "ETH") {
-                    txnReceipt = await timelockWallet.depositEther({value: ethers.utils.parseUnits(withdrawValue, "ether")});
-                } else {
-                    const erc20Contract = new ethers.Contract(selectedToken.contract, erc20ABI, signer);
-                    let allowance = await erc20Contract.allowance(address, "0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5");
-                    const withdrawValueinWei = ethers.utils.parseUnits(withdrawValue, selectedToken.decimals);
-                    if(allowance < withdrawValueinWei) {
-                        txnReceipt = await erc20Contract.approve("0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5", withdrawValueinWei);
-                    } else {
-                        txnReceipt = await timelockWallet.depsitToken(selectedToken.contract, withdrawValueinWei);
-                    }
-                }
-                console.log("Receipt is: ", txnReceipt);
-            } catch (err) {
-                console.log("Error: ", err);
+        if(withdrawValue > 0) {
+            let contractInterface = new ethers.utils.Interface(timelockWalletABI);
+
+            let functionSignature;
+            if(selectedToken.symbol === "ETH") {
+                functionSignature = contractInterface.encodeFunctionData("withdrawEther", [ethers.utils.parseUnits(withdrawValue, "ether")]);
+            } else {
+                const withdrawValueinWei = ethers.utils.parseUnits(withdrawValue, selectedToken.decimals);
+                functionSignature = contractInterface.encodeFunctionData("withdrawToken", [selectedToken.contract, withdrawValueinWei]);
             }
+
+            const params = [{
+                "from": address,
+                "to": ethers.utils.hexlify("0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5"),
+                "value": "0x0", 
+                "data": functionSignature,
+                "signatureType": biconomy.EIP712_SIGN
+            }];
+
+            await ethersProvider.send('eth_sendTransaction', params);
         }
     }
 
@@ -145,6 +153,14 @@ const Withdraw = () => {
             }
         }
     }
+
+    useEffect(() => {
+        const initBiconomy = async () => {
+            biconomy = new Biconomy(window.ethereum,{ apiKey: "jMdIihglJ.a093e35e-f925-454a-833a-79026b6aadbb", debug: true });
+            ethersProvider = new ethers.providers.Web3Provider(biconomy);
+        }
+        initBiconomy();
+    })
 
     useEffect(() => {
         if(isConnected) {
