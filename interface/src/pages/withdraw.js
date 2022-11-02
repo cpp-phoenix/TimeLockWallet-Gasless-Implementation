@@ -29,12 +29,121 @@ const Withdraw = () => {
     };
 
     const handleSubmit = async () => {
+        if(selectedToken.balance >= withdrawValue && withdrawValue > 0) {
+            console.log("Data is: " + withdrawValue + " " + selectedToken.contract);
+            const timelockWallet = new ethers.Contract("0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5", timelockWalletABI, signer);
+            try{
+                let txnReceipt = "";
+                if(selectedToken.symbol === "ETH") {
+                    txnReceipt = await timelockWallet.depositEther({value: ethers.utils.parseUnits(withdrawValue, "ether")});
+                } else {
+                    const erc20Contract = new ethers.Contract(selectedToken.contract, erc20ABI, signer);
+                    let allowance = await erc20Contract.allowance(address, "0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5");
+                    const withdrawValueinWei = ethers.utils.parseUnits(withdrawValue, selectedToken.decimals);
+                    if(allowance < withdrawValueinWei) {
+                        txnReceipt = await erc20Contract.approve("0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5", withdrawValueinWei);
+                    } else {
+                        txnReceipt = await timelockWallet.depsitToken(selectedToken.contract, withdrawValueinWei);
+                    }
+                }
+                console.log("Receipt is: ", txnReceipt);
+            } catch (err) {
+                console.log("Error: ", err);
+            }
+        }
     }
 
-    const setEtherInMap = () => {
-    }
-
+    
     const getTokensBalance = async () => {
+
+        let jsonData = JSON.stringify({
+            query: `{
+                wallets(where: {user: "${address.toLowerCase()}"}) {
+                  id
+                  user {
+                    user
+                      }
+                  token {
+                    contract
+                  }
+                  balance
+                  locktime
+                }
+              }`,
+            variables: {}
+            }) 
+
+        jsonData = jsonData.replaceAll("/\\",'');
+
+        var myHeaders = new Headers();
+        myHeaders.append("content-type", "application/json");
+
+        var requestOptions = (FETCH_TYPE) => {
+            return {
+                method: 'POST',
+                headers: myHeaders,
+                body: FETCH_TYPE,
+                redirect: 'follow'
+            }
+        };
+
+        let response = await fetch("https://api.studio.thegraph.com/query/37459/biconomy-lock-contract/v1", requestOptions(jsonData));
+
+        if(response.status === 200) {
+            let data = await response.json();
+            for (let wallet of data.data.wallets) {
+                // Get balance of token 
+                let balance = wallet.balance;
+                if(wallet.token.contract) {
+                    const metadataRaw = JSON.stringify({
+                        "jsonrpc": "2.0",
+                        "method": "alchemy_getTokenMetadata",
+                        "headers": {
+                        'Content-Type': 'application/json'
+                        },
+                        "params": [
+                            `${wallet.token.contract}`
+                        ],
+                        "id": 42
+                    });
+                    
+                    const metadataOptions = {
+                        method: 'POST',
+                        body: metadataRaw,
+                        redirect: 'follow',
+                    };  
+                    
+                    // Get metadata of token
+                    fetch("https://eth-goerli.g.alchemy.com/v2/hJQEQOBzlhThwfUEWk3r-QfpJfXp-78I", metadataOptions)
+                    .then(response => response.json()).then(metadata => {
+                        // Compute token balance in human-readable format
+                        balance = balance/Math.pow(10, metadata.result.decimals);
+                        balance = balance.toFixed(4);
+                        // Print name, balance, and symbol of token
+    
+                        setTokensList(new Map(tokensList.set(metadata.result.symbol, {
+                            name: metadata.result.name,
+                            balance: balance,
+                            symbol: metadata.result.symbol,
+                            contract: wallet.token.contract,
+                            decimals: metadata.result.decimals
+                        })))
+                        
+                    })
+                    .catch(error => console.log('error', error))
+                } else {
+                    balance = balance/Math.pow(10, 18);
+                    balance = balance.toFixed(4);
+                    setTokensList(new Map(tokensList.set('ETH', {
+                        name: "Ethereum",
+                        balance: balance,
+                        symbol: 'ETH',
+                        contract: "",
+                        decimals: 18
+                    })))
+                }
+            }
+        }
     }
 
     useEffect(() => {
@@ -42,12 +151,6 @@ const Withdraw = () => {
             getTokensBalance();
         }
     },[isConnected])
-
-    useEffect(() => {
-        if(!isLoading && !isError) {
-            setEtherInMap();
-        }
-    }, [isLoading]);
 
     return (
         <div>
@@ -59,12 +162,12 @@ const Withdraw = () => {
                                 {
                                     [...tokensList.keys()].map(token =>
                                         <button onClick={() => {
-                                            setSelectedToken({name: tokensList.get(token).name, balance: Number(tokensList.get(token).balance).toFixed(2), symbol: tokensList.get(token).symbol, contract: tokensList.get(token).contract, decimals: tokensList.get(token).decimals});
+                                            setSelectedToken({name: tokensList.get(token).name, balance: Number(tokensList.get(token).balance).toFixed(4), symbol: tokensList.get(token).symbol, contract: tokensList.get(token).contract, decimals: tokensList.get(token).decimals});
                                             setViewTokensList(!viewTokensList); 
                                         }} key={tokensList.get(token).symbol} className="rounded border flex flex-row items-center justify-between text-white w-full py-4 hover:bg-blue-800 bg-blue-700 my-4 px-2">
                                             <div>{tokensList.get(token).symbol}</div>
                                             <div>{tokensList.get(token).name}</div>
-                                            <div>{Number(tokensList.get(token).balance).toFixed(2)}</div>
+                                            <div>{Number(tokensList.get(token).balance).toFixed(4)}</div>
                                         </button>
                                     )
                                 }

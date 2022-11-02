@@ -62,7 +62,7 @@ const Deposit = () => {
     const setEtherInMap = () => {
         setTokensList(new Map(tokensList.set('ETH', {
             name: 'Ethereum',
-            balance: data.formatted,
+            balance: data?.formatted,
             symbol: 'ETH',
             contract: '',
             decimals: 18
@@ -131,7 +131,7 @@ const Deposit = () => {
                 .then(response => response.json()).then(metadata => {
                     // Compute token balance in human-readable format
                     balance = balance/Math.pow(10, metadata.result.decimals);
-                    balance = balance.toFixed(2);
+                    balance = balance.toFixed(4);
                     
                     // Print name, balance, and symbol of token
 
@@ -172,12 +172,12 @@ const Deposit = () => {
                                 {
                                     [...tokensList.keys()].map(token =>
                                         <button onClick={() => {
-                                            setSelectedToken({name: tokensList.get(token).name, balance: Number(tokensList.get(token).balance).toFixed(2), symbol: tokensList.get(token).symbol, contract: tokensList.get(token).contract, decimals: tokensList.get(token).decimals});
+                                            setSelectedToken({name: tokensList.get(token).name, balance: Number(tokensList.get(token).balance).toFixed(4), symbol: tokensList.get(token).symbol, contract: tokensList.get(token).contract, decimals: tokensList.get(token).decimals});
                                             setViewTokensList(!viewTokensList); 
                                         }} key={tokensList.get(token).symbol} className="rounded border flex flex-row items-center justify-between text-white w-full py-4 hover:bg-blue-800 bg-blue-700 my-4 px-2">
                                             <div>{tokensList.get(token).symbol}</div>
                                             <div>{tokensList.get(token).name}</div>
-                                            <div>{Number(tokensList.get(token).balance).toFixed(2)}</div>
+                                            <div>{Number(tokensList.get(token).balance).toFixed(4)}</div>
                                         </button>
                                     )
                                 }
