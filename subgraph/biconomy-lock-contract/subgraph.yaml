@@ -1,0 +1,32 @@
+specVersion: 0.0.4
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: TimelockWallet
+    network: goerli
+    source:
+      address: "0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5"
+      abi: TimelockWallet
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.6
+      language: wasm/assemblyscript
+      entities:
+        - depositEtherEvent
+        - depositTokenEvent
+        - withdrawEtherEvent
+        - withdrawTokenEvent
+      abis:
+        - name: TimelockWallet
+          file: ./abis/TimelockWallet.json
+      eventHandlers:
+        - event: depositEtherEvent(indexed address,uint256,uint256,uint256)
+          handler: handledepositEtherEvent
+        - event: depositTokenEvent(indexed address,indexed address,uint256,uint256,uint256)
+          handler: handledepositTokenEvent
+        - event: withdrawEtherEvent(indexed address,uint256,uint256)
+          handler: handlewithdrawEtherEvent
+        - event: withdrawTokenEvent(indexed address,indexed address,uint256,uint256)
+          handler: handlewithdrawTokenEvent
+      file: ./src/timelock-wallet.ts
