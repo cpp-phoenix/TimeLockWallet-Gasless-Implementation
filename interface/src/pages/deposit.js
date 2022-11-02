@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from "react";
+import { ethers } from 'ethers';
 import { useAccount } from "wagmi";
 import { useBalance } from 'wagmi'
+import timelockWalletABI from '../contractABI/timelockWalletABI.json';
+import erc20ABI from '../contractABI/ERC20ABI.json';
+import { useSigner } from 'wagmi'
 import 'react-dropdown/style.css';
 
 const Deposit = () => {
@@ -21,16 +25,47 @@ const Deposit = () => {
     
     const [tokensList, setTokensList] = useState(new Map());
 
-    const handleSubmit = () => {
-        alert(`The name you entered was:`)
+    const[depositValue, setDepositValue] = useState("0");
+
+    const { data: signer } = useSigner()
+
+    const handleChange = event => {
+        setDepositValue(event.target.value);
+        console.log(event.target.value);
+    };
+
+    const handleSubmit = async () => {
+        if(selectedToken.balance >= depositValue && depositValue > 0) {
+            console.log("Data is: " + depositValue + " " + selectedToken.contract);
+            const timelockWallet = new ethers.Contract("0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5", timelockWalletABI, signer);
+            try{
+                let txnReceipt = "";
+                if(selectedToken.symbol === "ETH") {
+                    txnReceipt = await timelockWallet.depositEther({value: ethers.utils.parseUnits(depositValue, "ether")});
+                } else {
+                    const erc20Contract = new ethers.Contract(selectedToken.contract, erc20ABI, signer);
+                    let allowance = await erc20Contract.allowance(address, "0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5");
+                    const depositValueinWei = ethers.utils.parseUnits(depositValue, selectedToken.decimals);
+                    if(allowance < depositValueinWei) {
+                        txnReceipt = await erc20Contract.approve("0x9bD1C105DaAB3a2494e0F8573FB137357e5ea4F5", depositValueinWei);
+                    } else {
+                        txnReceipt = await timelockWallet.depsitToken(selectedToken.contract, depositValueinWei);
+                    }
+                }
+                console.log("Receipt is: ", txnReceipt);
+            } catch (err) {
+                console.log("Error: ", err);
+            }
+        }
     }
 
     const setEtherInMap = () => {
-        console.log(data);
         setTokensList(new Map(tokensList.set('ETH', {
             name: 'Ethereum',
             balance: data.formatted,
-            symbol: 'ETH'
+            symbol: 'ETH',
+            contract: '',
+            decimals: 18
         })))
     }
 
@@ -56,17 +91,13 @@ const Deposit = () => {
         };
         fetch(baseURL, requestOptions).then(response => response.json()).then(data => {
             // Get balances
-            console.log(data);
             const balances = data.result;
-            console.log("Data is " + balances);
                 
             // Remove tokens with zero balance
             const nonZeroBalances = 
             balances.tokenBalances.filter(token => {
                 return token.tokenBalance !== '0'
             })
-
-            console.log(`Token balances of ${address} \n`)
             
             // Counter for SNo of final output
             let i = 1
@@ -98,19 +129,18 @@ const Deposit = () => {
                 // Get metadata of token
                 fetch("https://eth-goerli.g.alchemy.com/v2/hJQEQOBzlhThwfUEWk3r-QfpJfXp-78I", metadataOptions)
                 .then(response => response.json()).then(metadata => {
-                    console.log(metadata.result);
                     // Compute token balance in human-readable format
                     balance = balance/Math.pow(10, metadata.result.decimals);
                     balance = balance.toFixed(2);
                     
                     // Print name, balance, and symbol of token
-                    console.log(`${i++}. ${metadata.result.name}: ${balance} 
-                    ${metadata.result.symbol}`)
 
                     setTokensList(new Map(tokensList.set(metadata.result.symbol, {
                         name: metadata.result.name,
                         balance: balance,
-                        symbol: metadata.result.symbol
+                        symbol: metadata.result.symbol,
+                        contract: token.contractAddress,
+                        decimals: metadata.result.decimals
                     })))
                     
                 })
@@ -142,8 +172,8 @@ const Deposit = () => {
                                 {
                                     [...tokensList.keys()].map(token =>
                                         <button onClick={() => {
-                                            setSelectedToken({name: tokensList.get(token).name, balance: Number(tokensList.get(token).balance).toFixed(2), symbol: tokensList.get(token).symbol});
-                                            setViewTokensList(!viewTokensList) 
+                                            setSelectedToken({name: tokensList.get(token).name, balance: Number(tokensList.get(token).balance).toFixed(2), symbol: tokensList.get(token).symbol, contract: tokensList.get(token).contract, decimals: tokensList.get(token).decimals});
+                                            setViewTokensList(!viewTokensList); 
                                         }} key={tokensList.get(token).symbol} className="rounded border flex flex-row items-center justify-between text-white w-full py-4 hover:bg-blue-800 bg-blue-700 my-4 px-2">
                                             <div>{tokensList.get(token).symbol}</div>
                                             <div>{tokensList.get(token).name}</div>
@@ -162,7 +192,7 @@ const Deposit = () => {
                 <div className="border py-2 px-2 bg-blue-900 rounded-lg border-gray-900">
                     <span className="flex w-full justify-center mb-2">Deposit</span>
                     <div className="flex flex-row bg-blue-700 py-6 px-2 rounded-lg">
-                        <input className="placeholder:italic placeholder:text-slate-400 placeholder:text-lg placeholder:px-2 rounded-md border border-slate-300 focus:outline-none focus:border-sky-500 focus:ring-sky-500 focus:ring-1 text-black text-lg" type="number" placeholder="0" name="name" />
+                        <input onChange={handleChange} className="placeholder:italic placeholder:text-slate-400 placeholder:text-lg placeholder:px-2 rounded-md border border-slate-300 focus:outline-none focus:border-sky-500 focus:ring-sky-500 focus:ring-1 text-black text-lg" type="number" placeholder="0" name="name" />
                         <button onClick={() => setViewTokensList(!viewTokensList)} className="text-lg ml-2 border rounded-lg px-4 bg-blue-800">
                             { selectedToken.symbol ? 
                                 <div className="w-full h-full">
@@ -173,7 +203,6 @@ const Deposit = () => {
                                 </div> : "List"
                             }
                         </button>
-                        
                     </div> 
                     {
                      !selectedToken.balance ? <button className="cursor-not-allowed w-full bg-blue-500 mt-4 rounded-lg p-2 text-lg" disabled>Select Token</button>
