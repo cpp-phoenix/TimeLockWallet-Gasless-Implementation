@@ -30,6 +30,8 @@ const Withdraw = () => {
 
     const[withdrawValue, setWithdrawValue] = useState("0");
 
+    const[bicoSetup, setBicoSetup] = useState(false);
+
     const { data: signer } = useSigner()
 
     const handleChange = event => {
@@ -38,6 +40,7 @@ const Withdraw = () => {
     };
 
     const handleSubmit = async () => {
+        console.log(selectedToken);
         if(withdrawValue > 0) {
             let contractInterface = new ethers.utils.Interface(timelockWalletABI);
 
@@ -154,11 +157,17 @@ const Withdraw = () => {
         }
     }
 
+    const initBiconomy = async () => {
+        biconomy = new Biconomy(window.ethereum,{ apiKey: "jMdIihglJ.a093e35e-f925-454a-833a-79026b6aadbb", debug: true, strictMode: true });
+        ethersProvider = new ethers.providers.Web3Provider(biconomy);
+        biconomy.onEvent(biconomy.READY, () => {
+            setBicoSetup(true);
+        }).onEvent(biconomy.ERROR, (error, message) => {
+            setBicoSetup(false);
+        });
+    }
+
     useEffect(() => {
-        const initBiconomy = async () => {
-            biconomy = new Biconomy(window.ethereum,{ apiKey: "jMdIihglJ.a093e35e-f925-454a-833a-79026b6aadbb", debug: true });
-            ethersProvider = new ethers.providers.Web3Provider(biconomy);
-        }
         initBiconomy();
     })
 
@@ -211,7 +220,7 @@ const Withdraw = () => {
                         </button>
                     </div>
                     {
-                        !selectedToken.balance ? <button className="cursor-not-allowed w-full bg-blue-500 mt-4 rounded-lg p-2 text-lg" disabled>Select Token</button>
+                        (!selectedToken.balance || !bicoSetup) ? <button className="cursor-not-allowed w-full bg-blue-500 mt-4 rounded-lg p-2 text-lg" disabled>Select Token</button>
                         : <button onClick={() => handleSubmit()} className="w-full hover:bg-blue-800 bg-blue-700 mt-4 rounded-lg p-2 text-lg">Submit</button>
                     }
                 </div>
